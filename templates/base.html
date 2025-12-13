@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}TasmotaFleet{% endblock %}</title>
+
+  <!-- Bootswatch Theme (Bootstrap 5) -->
+  <link
+    id="themeStylesheet"
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/lux/bootstrap.min.css"
+  >
+
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+  >
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block extra_head %}{% endblock %}
+</head>
+
+<body>
+  <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+    <div class="container-fluid">
+      <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('index') }}">
+        <span class="fw-bold">TasmotaFleet</span>
+        <span class="badge text-bg-light text-primary-emphasis">v{{ app_version }}</span>
+      </a>
+
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar"
+              aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="mainNavbar">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="nav-link active" href="{{ url_for('index') }}">
+              <i class="bi bi-grid me-1"></i>Dashboard
+            </a>
+          </li>
+        </ul>
+
+        <div class="d-flex align-items-center gap-3">
+          <div class="d-flex align-items-center text-white-50 small">
+            <label for="themeSelect" class="me-2 mb-0">Theme</label>
+            <select id="themeSelect" class="form-select form-select-sm bg-primary-subtle border-0 text-body">
+              <option value="lux">Lux</option>
+              <option value="flatly">Flatly</option>
+              <option value="materia">Materia</option>
+              <option value="minty">Minty</option>
+              <option value="pulse">Pulse</option>
+              <option value="sandstone">Sandstone</option>
+              <option value="solar">Solar</option>
+              <option value="spacelab">Spacelab</option>
+              <option value="yeti">Yeti</option>
+              <option value="slate">Slate</option>
+              <option value="darkly">Darkly</option>
+              <option value="cyborg">Cyborg</option>
+              <option value="superhero">Superhero</option>
+            </select>
+          </div>
+
+          <button class="btn btn-warning btn-sm" type="submit" form="{{ nav_scan_form_id }}">
+            <i class="bi bi-broadcast-pin me-1"></i>Scan
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container my-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="alert-stack">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </div>
+
+  <script>
+    (function () {
+      const select = document.getElementById('themeSelect');
+      const linkEl = document.getElementById('themeStylesheet');
+      if (!select || !linkEl) return;
+
+      const STORAGE_KEY = 'tasmotafleet-theme';
+      const BASE = 'https://cdn.jsdelivr.net/npm/bootswatch@5.3.3/dist/';
+      const THEMES = ['lux', 'flatly', 'materia', 'minty', 'pulse', 'sandstone',
+                      'solar', 'spacelab', 'yeti', 'slate', 'darkly', 'cyborg', 'superhero'];
+
+      function applyTheme(name) {
+        const theme = THEMES.includes(name) ? name : 'lux';
+        linkEl.href = `${BASE}${theme}/bootstrap.min.css`;
+        select.value = theme;
+        localStorage.setItem(STORAGE_KEY, theme);
+      }
+
+      const saved = localStorage.getItem(STORAGE_KEY) || 'lux';
+      applyTheme(saved);
+
+      select.addEventListener('change', (ev) => {
+        applyTheme(ev.target.value);
+      });
+    })();
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+          crossorigin="anonymous"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
