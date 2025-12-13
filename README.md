@@ -90,20 +90,24 @@ sudo systemctl status tasmotafleet --no-pager
 ```
 
 ## TasmotaFleet updaten
-Service stoppen:
+Service stoppen (als root-User):
 ```
 sudo systemctl stop tasmotafleet
 ```
 
 Code aus GitHub aktualisieren:
 ```
+su - tasmotafleet
+cd projects/tasmotafleet/TasmotaFleet
 git pull
 ```
 
 Abhängigkeiten aktualisieren:
 ```
+source .venv/bin/activate
 pip install --upgrade pip
 pip install --upgrade -r requirements.txt
+su - root
 ```
 
 Service wieder starten:
