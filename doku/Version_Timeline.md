@@ -1,4 +1,6 @@
 # Timeline NeoFab
+## Version 0.2.9
+Logo
 ## Version 0.2.8
 IP-Range Anpassungen
 ## Version 0.2.7
