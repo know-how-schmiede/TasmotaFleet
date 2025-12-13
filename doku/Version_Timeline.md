@@ -1,4 +1,6 @@
 # Timeline NeoFab
+## Version 0.2.4
+Design Anpassungen Power Zustand
 ## Version 0.2.3
 Design Anpassungen Dashboard
 ## Version 0.2.2

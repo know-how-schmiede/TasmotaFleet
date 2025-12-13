@@ -39,108 +39,109 @@
   </div>
 
   <div class="col-12">
-    <form id="scanForm" action="{{ url_for('trigger_scan') }}" method="post" class="card shadow-sm">
-      <div class="card-body">
-        <div class="row g-3 align-items-end">
-          <div class="col-lg-6">
-            <label for="ip_range" class="form-label fw-semibold">IP-Range</label>
-            <input type="text"
-                   class="form-control form-control-lg"
-                   id="ip_range"
-                   name="ip_range"
-                   value="{{ current_range }}"
-                   placeholder="z.B. 192.168.0.0/24 oder 192.168.0.10-192.168.0.50">
-            <div class="form-text">
-              Unterstuetzt CIDR oder Start-Ende. Standard: lokales /24 Netz.
+    <div class="row g-4">
+      <div class="col-lg-4">
+        <div class="card shadow-sm h-100">
+          <div class="card-header bg-body-secondary d-flex align-items-center justify-content-between">
+            <div class="fw-semibold">Scan-Status</div>
+            <span id="scanStatusPill" class="badge text-bg-secondary text-uppercase">
+              {{ status }}
+            </span>
+          </div>
+          <div class="card-body">
+            <div class="mb-3">
+              <div class="d-flex justify-content-between small text-muted mb-1">
+                <span>Fortschritt</span>
+                <span id="scanProgressText">{{ progress.done }}/{{ progress.total }} ({{ percent|round|int }}%)</span>
+              </div>
+              <div class="progress" role="progressbar" aria-label="Scan Fortschritt" aria-valuenow="{{ percent|round|int }}" aria-valuemin="0" aria-valuemax="100">
+                <div id="scanProgressBarFill" class="progress-bar progress-bar-striped {% if status == 'running' %}progress-bar-animated{% endif %}"
+                     style="width: {{ percent }}%"></div>
+              </div>
+              <div class="small text-muted mt-1" id="scanLastIp">
+                {% if progress.last_ip %}Letzte IP: {{ progress.last_ip }}{% else %}&nbsp;{% endif %}
+              </div>
             </div>
-          </div>
 
-          <div class="col-lg-4">
-            <span class="form-label fw-semibold">Ports</span>
-            <div class="d-flex flex-wrap gap-3">
-              {% for port in [80, 443] %}
-                <div class="form-check">
-                  <input class="form-check-input"
-                         type="checkbox"
-                         value="{{ port }}"
-                         id="port{{ port }}"
-                         name="ports"
-                         {% if port in ports %}checked{% endif %}>
-                  <label class="form-check-label" for="port{{ port }}">Port {{ port }}</label>
-                </div>
-              {% endfor %}
-            </div>
-            <div class="form-text">Port 80 = HTTP, Port 443 = HTTPS.</div>
-          </div>
-
-          <div class="col-lg-2 text-lg-end">
-            <button type="submit" class="btn btn-primary btn-lg w-100">
-              <i class="bi bi-broadcast-pin me-1"></i> Scan starten
-            </button>
-          </div>
-        </div>
-      </div>
-    </form>
-  </div>
-
-  <div class="col-lg-4">
-    <div class="card shadow-sm h-100">
-      <div class="card-header bg-body-secondary d-flex align-items-center justify-content-between">
-        <div class="fw-semibold">Scan-Status</div>
-        <span id="scanStatusPill" class="badge text-bg-secondary text-uppercase">
-          {{ status }}
-        </span>
-      </div>
-      <div class="card-body">
-        <div class="mb-3">
-          <div class="d-flex justify-content-between small text-muted mb-1">
-            <span>Fortschritt</span>
-            <span id="scanProgressText">{{ progress.done }}/{{ progress.total }} ({{ percent|round|int }}%)</span>
-          </div>
-          <div class="progress" role="progressbar" aria-label="Scan Fortschritt" aria-valuenow="{{ percent|round|int }}" aria-valuemin="0" aria-valuemax="100">
-            <div id="scanProgressBarFill" class="progress-bar progress-bar-striped {% if status == 'running' %}progress-bar-animated{% endif %}"
-                 style="width: {{ percent }}%"></div>
-          </div>
-          <div class="small text-muted mt-1" id="scanLastIp">
-            {% if progress.last_ip %}Letzte IP: {{ progress.last_ip }}{% else %}&nbsp;{% endif %}
-          </div>
-        </div>
-
-        {% if last_error %}
-          <div id="scanErrorMessage" class="alert alert-danger py-2 mb-3">
-            {{ last_error }}
-          </div>
-        {% else %}
-          <div id="scanErrorMessage" class="d-none"></div>
-        {% endif %}
-
-        <dl class="row mb-0">
-          <dt class="col-6 text-muted small">Range</dt>
-          <dd class="col-6 small">{{ current_range }}</dd>
-
-          <dt class="col-6 text-muted small">Hosts gesamt</dt>
-          <dd class="col-6 small" id="scanHostsTotal">{{ stats.get('hosts_total', 0) }}</dd>
-
-          <dt class="col-6 text-muted small">Ports</dt>
-          <dd class="col-6 small">{{ ports | join(', ') }}</dd>
-
-          <dt class="col-6 text-muted small">Dauer</dt>
-          <dd class="col-6 small" id="scanDuration">
-            {% if stats.get('duration') %}
-              {{ "%.2f" | format(stats.get('duration')) }} s
+            {% if last_error %}
+              <div id="scanErrorMessage" class="alert alert-danger py-2 mb-3">
+                {{ last_error }}
+              </div>
             {% else %}
-              -
+              <div id="scanErrorMessage" class="d-none"></div>
             {% endif %}
-          </dd>
 
-          <dt class="col-6 text-muted small">Gefundene Geraete</dt>
-          <dd class="col-6 small" id="scanDevicesCount">{{ devices | length }}</dd>
-        </dl>
+            <dl class="row mb-0">
+              <dt class="col-6 text-muted small">Range</dt>
+              <dd class="col-6 small">{{ current_range }}</dd>
+
+              <dt class="col-6 text-muted small">Hosts gesamt</dt>
+              <dd class="col-6 small" id="scanHostsTotal">{{ stats.get('hosts_total', 0) }}</dd>
+
+              <dt class="col-6 text-muted small">Ports</dt>
+              <dd class="col-6 small">{{ ports | join(', ') }}</dd>
+
+              <dt class="col-6 text-muted small">Dauer</dt>
+              <dd class="col-6 small" id="scanDuration">
+                {% if stats.get('duration') %}
+                  {{ "%.2f" | format(stats.get('duration')) }} s
+                {% else %}
+                  -
+                {% endif %}
+              </dd>
+
+              <dt class="col-6 text-muted small">Gefundene Geraete</dt>
+              <dd class="col-6 small" id="scanDevicesCount">{{ devices | length }}</dd>
+            </dl>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-8">
+        <form id="scanForm" action="{{ url_for('trigger_scan') }}" method="post" class="card shadow-sm h-100">
+          <div class="card-body d-flex flex-column gap-3">
+            <div>
+              <label for="ip_range" class="form-label fw-semibold">IP-Range</label>
+              <input type="text"
+                     class="form-control form-control-lg"
+                     id="ip_range"
+                     name="ip_range"
+                     value="{{ current_range }}"
+                     placeholder="z.B. 192.168.0.0/24 oder 192.168.0.10-192.168.0.50">
+              <div class="form-text">
+                Unterstuetzt CIDR oder Start-Ende. Standard: lokales /24 Netz.
+              </div>
+            </div>
+
+            <div>
+              <div class="form-label fw-semibold">Ports</div>
+              <div class="d-flex flex-wrap gap-3">
+                {% for port in [80, 443] %}
+                  <div class="form-check">
+                    <input class="form-check-input"
+                           type="checkbox"
+                           value="{{ port }}"
+                           id="port{{ port }}"
+                           name="ports"
+                           {% if port in ports %}checked{% endif %}>
+                    <label class="form-check-label" for="port{{ port }}">Port {{ port }}</label>
+                  </div>
+                {% endfor %}
+              </div>
+              <div class="form-text">Port 80 = HTTP, Port 443 = HTTPS.</div>
+            </div>
+
+            <div class="text-end mt-auto">
+              <button type="submit" class="btn btn-primary btn-lg">
+                <i class="bi bi-broadcast-pin me-1"></i> Scan starten
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
     </div>
   </div>
 
-  <div class="col-lg-8">
+  <div class="col-12">
     <div class="card shadow-sm h-100">
       <div class="card-header bg-body-secondary d-flex align-items-center justify-content-between">
         <div class="fw-semibold">Gefundene Tasmota-Geraete</div>
@@ -157,7 +158,6 @@
                 <th>MAC</th>
                 <th>RSSI</th>
                 <th>Power</th>
-                <th>Quelle</th>
                 <th>Web-UI</th>
               </tr>
             </thead>
@@ -184,11 +184,15 @@
                       -
                     {% endif %}
                   </td>
-                  <td>{{ dev.power or '-' }}</td>
-                  <td>
-                    <span class="badge text-bg-secondary">{{ dev.detected_via }}</span>
-                    <div class="text-muted small">{{ dev.endpoint }}</div>
-                  </td>
+                    <td>
+                      {% if dev.power and dev.power|string|upper == 'ON' %}
+                        <span class="badge text-bg-success">ON</span>
+                      {% elif dev.power and dev.power|string|upper == 'OFF' %}
+                        <span class="badge text-bg-danger">OFF</span>
+                      {% else %}
+                        {{ dev.power or '-' }}
+                      {% endif %}
+                    </td>
                   <td>
                     <a class="btn btn-outline-primary btn-sm" href="{{ dev.url }}" target="_blank" rel="noreferrer">
                       <i class="bi bi-box-arrow-up-right me-1"></i>Öffnen
@@ -302,10 +306,13 @@
               <td>${dev.version || '-'}</td>
               <td class="text-monospace small">${dev.mac || '-'}</td>
               <td>${dev.rssi !== null && dev.rssi !== undefined ? `<span class="badge text-bg-success">${dev.rssi} %</span>` : '-'}</td>
-              <td>${dev.power || '-'}</td>
               <td>
-                <span class="badge text-bg-secondary">${dev.detected_via || 'status'}</span>
-                <div class="text-muted small">${dev.endpoint || ''}</div>
+                ${(() => {
+                  const p = (dev.power || '').toString().toUpperCase();
+                  if (p === 'ON') return '<span class="badge text-bg-success">ON</span>';
+                  if (p === 'OFF') return '<span class="badge text-bg-danger">OFF</span>';
+                  return dev.power || '-';
+                })()}
               </td>
               <td>
                 <a class="btn btn-outline-primary btn-sm" href="${dev.url}" target="_blank" rel="noreferrer">
