@@ -158,6 +158,7 @@
                 <th>RSSI</th>
                 <th>Power</th>
                 <th>Quelle</th>
+                <th>Web-UI</th>
               </tr>
             </thead>
             <tbody id="devicesTableBody">
@@ -187,6 +188,11 @@
                   <td>
                     <span class="badge text-bg-secondary">{{ dev.detected_via }}</span>
                     <div class="text-muted small">{{ dev.endpoint }}</div>
+                  </td>
+                  <td>
+                    <a class="btn btn-outline-primary btn-sm" href="{{ dev.url }}" target="_blank" rel="noreferrer">
+                      <i class="bi bi-box-arrow-up-right me-1"></i>Öffnen
+                    </a>
                   </td>
                 </tr>
               {% endfor %}
@@ -285,7 +291,7 @@
             const tr = document.createElement('tr');
             tr.innerHTML = `
               <td>
-                <div class="fw-semibold">${dev.name || 'Tasmota Gerät'}</div>
+                <div class="fw-semibold">${dev.name || 'Tasmota Geraet'}</div>
                 <div class="text-muted small">${dev.hostname || 'Hostname unbekannt'}</div>
               </td>
               <td>
@@ -301,6 +307,11 @@
                 <span class="badge text-bg-secondary">${dev.detected_via || 'status'}</span>
                 <div class="text-muted small">${dev.endpoint || ''}</div>
               </td>
+              <td>
+                <a class="btn btn-outline-primary btn-sm" href="${dev.url}" target="_blank" rel="noreferrer">
+                  <i class="bi bi-box-arrow-up-right me-1"></i>Öffnen
+                </a>
+              </td>
             `;
             devicesBody.appendChild(tr);
           });
@@ -309,17 +320,6 @@
         } else {
           if (devicesWrapper) devicesWrapper.style.display = 'none';
           if (devicesEmpty) devicesEmpty.classList.remove('d-none');
-        }
-      }
-
-      function setError(message) {
-        if (!errorBox) return;
-        if (message) {
-          errorBox.className = 'alert alert-danger py-2 mb-3';
-          errorBox.textContent = message;
-        } else {
-          errorBox.className = 'd-none';
-          errorBox.textContent = '';
         }
       }
 
@@ -338,7 +338,6 @@
             if (state === 'running') {
               setTimeout(poll, 1000);
             } else {
-              // continue to poll occasionally to catch new scans without reload
               setTimeout(poll, 3000);
             }
           })
@@ -347,7 +346,17 @@
           });
       }
 
-      // start polling immediately to reflect current state and future scans
+      function setError(message) {
+        if (!errorBox) return;
+        if (message) {
+          errorBox.className = 'alert alert-danger py-2 mb-3';
+          errorBox.textContent = message;
+        } else {
+          errorBox.className = 'd-none';
+          errorBox.textContent = '';
+        }
+      }
+
       setStatusBadge(initialStatus);
       setTimeout(poll, 200);
     })();

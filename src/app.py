@@ -7,8 +7,8 @@ from typing import List
 
 from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 
-from tasmota_scanner import DEFAULT_PORTS, ScanError, expand_ip_range, scan_range
-from version import APP_VERSION
+from .tasmota_scanner import DEFAULT_PORTS, ScanError, expand_ip_range, scan_range
+from .version import APP_VERSION
 
 DEFAULT_SCAN_RANGE = os.getenv("TASMOTA_FLEET_RANGE", "192.168.1.0/24")
 SCAN_CACHE_FILE = os.getenv("SCAN_CACHE_FILE", "scan_results.json")
@@ -69,7 +69,7 @@ def create_app() -> Flask:
 
         with state_lock:
             if scan_state["status"] == "running":
-                flash("Ein Scan läuft bereits. Bitte warte einen Moment.", "warning")
+                flash("Ein Scan laeuft bereits. Bitte warte einen Moment.", "warning")
                 return redirect(url_for("index"))
 
         try:
@@ -102,7 +102,7 @@ def create_app() -> Flask:
             daemon=True,
         ).start()
 
-        flash("Scan gestartet … Fortschritt wird angezeigt.", "info")
+        flash("Scan gestartet - Fortschritt wird angezeigt.", "info")
         return redirect(url_for("index"))
 
     @app.route("/scan/status")
@@ -142,7 +142,6 @@ def _run_scan(ip_range: str, ports: List[int], max_hosts: int, cache_path: str) 
     def _progress(done: int, total: int, ip: str) -> None:
         with state_lock:
             scan_state["progress"] = {"done": done, "total": total, "last_ip": ip}
-        # log jeden Host, um Fortschritt transparent zu halten
         logger.info("Scan Fortschritt %s: %d/%d (Host %s)", ip_range, done, total, ip)
 
     try:
@@ -152,7 +151,7 @@ def _run_scan(ip_range: str, ports: List[int], max_hosts: int, cache_path: str) 
             max_hosts=max_hosts,
             progress_cb=_progress,
         )
-    except Exception as exc:  # broad by intention: we want to capture any scan failure
+    except Exception as exc:  # broad by intention: capture any scan failure
         logger.exception("Scan fehlgeschlagen: %s", ip_range)
         with state_lock:
             scan_state["status"] = "error"
@@ -176,7 +175,7 @@ def _run_scan(ip_range: str, ports: List[int], max_hosts: int, cache_path: str) 
         scan_state["last_error"] = None
 
     logger.info(
-        "Scan abgeschlossen: Range=%s, Geräte=%d, Dauer=%.2fs",
+        "Scan abgeschlossen: Range=%s, Geraete=%d, Dauer=%.2fs",
         ip_range,
         len(result["devices"]),
         result["duration"],

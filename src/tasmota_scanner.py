@@ -3,7 +3,7 @@ import ipaddress
 import socket
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Callable, Dict, Iterable, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence
 
 import requests
 import urllib3
@@ -46,7 +46,7 @@ def expand_ip_range(range_text: str, *, max_hosts: int = 512) -> List[str]:
         else:
             hosts = [ipaddress.ip_address(text)]
     except ValueError as exc:
-        raise ScanError(f"Ungültiger IP-Range: {exc}") from exc
+        raise ScanError(f"Ungueltiger IP-Range: {exc}") from exc
 
     if len(hosts) == 0:
         raise ScanError("Keine Hosts im Range.")
@@ -54,7 +54,7 @@ def expand_ip_range(range_text: str, *, max_hosts: int = 512) -> List[str]:
     if len(hosts) > max_hosts:
         raise ScanError(
             f"Zu viele Hosts ({len(hosts)}). Bitte Range verkleinern "
-            f"oder max_hosts erhöhen."
+            f"oder max_hosts erhoehen."
         )
 
     return [str(host) for host in hosts]
@@ -238,7 +238,7 @@ def _parse_status_json(resp: requests.Response) -> Optional[Dict]:
     uptime = status_sts.get("Uptime") or status_sts.get("UptimeSec")
 
     return {
-        "name": friendly_name or hostname or "Tasmota Gerät",
+        "name": friendly_name or hostname or "Tasmota Geraet",
         "hostname": hostname,
         "friendly_name": friendly_name,
         "version": version,
