@@ -26,8 +26,8 @@ cd projects/tasmotafleet
 git clone https://github.com/know-how-schmiede/TasmotaFleet.git
 
 cd TasmotaFleet
-python -m venv .venv
-.venv\Scripts\activate        # PowerShell: .venv\Scripts\Activate.ps1
+python3 -m venv .venv
+source .venv/bin/activate        # PowerShell: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
@@ -39,6 +39,78 @@ python -m src.app
 ```
 
 Rufe danach `http://localhost:5000` im Browser auf.
+
+## Als Dienst laufen lassen
+```
+source .venv/bin/activate
+pip install gunicorn
+```
+Auf Root-User wechseln:
+```
+su - root
+```
+systemd Service anlegen (als root):
+```
+sudo nano /etc/systemd/system/tasmotafleet.service
+```
+
+```
+[Unit]
+Description=TasmotaFleet (Gunicorn)
+After=network.target
+
+[Service]
+User=tasmotafleet
+Group=tasmotafleet
+WorkingDirectory=/home/tasmotafleet/projects/tasmotafleet/TasmotaFleet
+Environment="PATH=/home/tasmotafleet/projects/tasmotafleet/TasmotaFleet/.venv/bin"
+ExecStart=/home/tasmotafleet/projects/tasmotafleet/TasmotaFleet/.venv/bin/gunicorn -w 2 -b 0.0.0.0:5000 "src.app:create_app()"
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+```
+Dienst aktivieren und starten
+```
+sudo systemctl daemon-reload
+sudo systemctl enable --now tasmotafleet
+sudo systemctl status tasmotafleet --no-pager
+```
+Logs:
+```
+journalctl -u tasmotafleet -f
+```
+
+Reload + Neustart:
+```
+sudo systemctl daemon-reload
+sudo systemctl restart tasmotafleet
+sudo systemctl status tasmotafleet --no-pager
+```
+
+## TasmotaFleet updaten
+Service stoppen:
+```
+sudo systemctl stop tasmotafleet
+```
+
+Code aus GitHub aktualisieren:
+```
+git pull
+```
+
+Abhängigkeiten aktualisieren:
+```
+pip install --upgrade pip
+pip install --upgrade -r requirements.txt
+```
+
+Service wieder starten:
+```
+sudo systemctl start tasmotafleet
+sudo systemctl status tasmotafleet --no-pager
+```
 
 ## Konfiguration
 - `TASMOTA_FLEET_RANGE` – Standard-IP-Range (Default: `192.168.1.0/24`)
