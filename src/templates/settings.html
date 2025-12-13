@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}TasmotaFleet | Settings{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-12">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h1 class="h4 mb-1">Einstellungen</h1>
+        <p class="text-muted mb-0">
+          Passe Standardwerte fuer Scan und Speicherung an.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-8">
+    <form action="{{ url_for('settings_page') }}" method="post" class="card shadow-sm">
+      <div class="card-body">
+        <div class="mb-3">
+          <label for="default_range" class="form-label fw-semibold">Standard IP-Range</label>
+          <input type="text"
+                 class="form-control form-control-lg"
+                 id="default_range"
+                 name="default_range"
+                 value="{{ default_range }}"
+                 placeholder="z.B. 192.168.1.0/24">
+          <div class="form-text">
+            Wird als Vorauswahl fuer neue Scans genutzt.
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label for="scan_max_hosts" class="form-label fw-semibold">Max Hosts pro Scan</label>
+          <input type="number"
+                 class="form-control"
+                 id="scan_max_hosts"
+                 name="scan_max_hosts"
+                 min="1"
+                 value="{{ scan_max_hosts }}">
+          <div class="form-text">
+            Begrenzung der Hostanzahl pro Scan. Erhoehung kann den Scan verlangsamen.
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label for="scan_cache_file" class="form-label fw-semibold">Pfad Scan-Cache</label>
+          <input type="text"
+                 class="form-control"
+                 id="scan_cache_file"
+                 name="scan_cache_file"
+                 value="{{ scan_cache_file }}">
+          <div class="form-text">
+            JSON-Datei fuer gespeicherte Scan-Ergebnisse.
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label for="refresh_interval_ms" class="form-label fw-semibold">Refresh-Time Dashboard (ms)</label>
+          <input type="number"
+                 class="form-control"
+                 id="refresh_interval_ms"
+                 name="refresh_interval_ms"
+                 min="500"
+                 step="100"
+                 value="{{ refresh_interval_ms }}">
+          <div class="form-text">
+            Aktualisierungsintervall fuer Power-Status auf dem Dashboard (mind. 500 ms).
+          </div>
+        </div>
+
+        <div class="text-end">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save me-1"></i>Speichern
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

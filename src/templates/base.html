@@ -37,8 +37,18 @@
       <div class="collapse navbar-collapse" id="mainNavbar">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item">
-            <a class="nav-link active" href="{{ url_for('index') }}">
+            <a class="nav-link {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">
               <i class="bi bi-grid me-1"></i>Dashboard
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'scan_page' %}active{% endif %}" href="{{ url_for('scan_page') }}">
+              <i class="bi bi-broadcast-pin me-1"></i>Scan
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link {% if request.endpoint == 'settings_page' %}active{% endif %}" href="{{ url_for('settings_page') }}">
+              <i class="bi bi-gear me-1"></i>Settings
             </a>
           </li>
         </ul>
@@ -62,10 +72,6 @@
               <option value="superhero">Superhero</option>
             </select>
           </div>
-
-          <button class="btn btn-warning btn-sm" type="submit" form="{{ nav_scan_form_id }}">
-            <i class="bi bi-broadcast-pin me-1"></i>Scan
-          </button>
         </div>
       </div>
     </div>

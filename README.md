@@ -12,6 +12,19 @@ Der Quellcode liegt nun im Ordner `src/`.
 
 ## Setup
 ```bash
+apt install sudo -y
+sudo apt update -y
+sudo apt upgrade -y
+sudo apt install -y python3 python3-venv python3-pip git
+
+adduser tasmotafleet
+su - tasmotafleet
+mkdir -p ~/projects/tasmotafleet
+
+cd projects/tasmotafleet
+
+git clone https://github.com/know-how-schmiede/TasmotaFleet.git
+
 cd TasmotaFleet
 python -m venv .venv
 .venv\Scripts\activate        # PowerShell: .venv\Scripts\Activate.ps1
@@ -32,6 +45,7 @@ Rufe danach `http://localhost:5000` im Browser auf.
 - `SCAN_MAX_HOSTS` – maximale Hostanzahl pro Scan (Default: `512`)
 - `SECRET_KEY` – Flask Secret fuer Sessions/Flash-Messages
 - `SCAN_CACHE_FILE` – Pfad zur JSON-Datei mit den letzten Scan-Ergebnissen (Default: `scan_results.json`)
+- Settings werden in `TasmotaFleetSet.JSON` gespeichert (Pfad per `TASMOTA_FLEET_SETTINGS` ueberschreibbar). Hier werden Standard-Range, Max Hosts, Cache-Pfad und Refresh-Intervall gesichert.
 
 ## Hinweise zum Scan
 - TCP-Connect auf Port 80/443, danach Status-API. HTTPS wird ohne Zertifikatspruefung angesprochen, damit selbstsignierte Geraete erreichbar sind.

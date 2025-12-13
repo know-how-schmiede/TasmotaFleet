@@ -5,12 +5,6 @@
 {% block content %}
 {% set stats = scan_state.get('stats', {}) %}
 {% set devices = scan_state.get('devices', []) %}
-{% set current_range = scan_state.get('range', default_range) %}
-{% set ports = stats.get('ports', [80, 443]) %}
-{% set status = scan_state.get('status', 'idle') %}
-{% set progress = scan_state.get('progress', {'done': 0, 'total': 0, 'last_ip': None}) %}
-{% set percent = (progress.done / progress.total * 100) if progress.total else 0 %}
-{% set last_error = scan_state.get('last_error') %}
 
 <div class="row g-4">
   <div class="col-12">
@@ -18,9 +12,9 @@
       <div class="card-body">
         <div class="d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
           <div>
-            <h1 class="h4 mb-1">TasmotaFleet Netzwerk-Scan</h1>
+            <h1 class="h4 mb-1">TasmotaFleet Dashboard</h1>
             <p class="text-muted mb-0">
-              Scannt einen IP-Range nach Tasmota-Geraeten auf Port 80 und 443 und listet gefundene Infos.
+              Übersicht der gefundenen Tasmota-Geraete. Scans kannst du im Menü unter "Scan" starten.
             </p>
           </div>
           <div class="text-lg-end">
@@ -34,109 +28,6 @@
             </div>
           </div>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-12">
-    <div class="row g-4">
-      <div class="col-lg-4">
-        <div class="card shadow-sm h-100">
-          <div class="card-header bg-body-secondary d-flex align-items-center justify-content-between">
-            <div class="fw-semibold">Scan-Status</div>
-            <span id="scanStatusPill" class="badge text-bg-secondary text-uppercase">
-              {{ status }}
-            </span>
-          </div>
-          <div class="card-body">
-            <div class="mb-3">
-              <div class="d-flex justify-content-between small text-muted mb-1">
-                <span>Fortschritt</span>
-                <span id="scanProgressText">{{ progress.done }}/{{ progress.total }} ({{ percent|round|int }}%)</span>
-              </div>
-              <div class="progress" role="progressbar" aria-label="Scan Fortschritt" aria-valuenow="{{ percent|round|int }}" aria-valuemin="0" aria-valuemax="100">
-                <div id="scanProgressBarFill" class="progress-bar progress-bar-striped {% if status == 'running' %}progress-bar-animated{% endif %}"
-                     style="width: {{ percent }}%"></div>
-              </div>
-              <div class="small text-muted mt-1" id="scanLastIp">
-                {% if progress.last_ip %}Letzte IP: {{ progress.last_ip }}{% else %}&nbsp;{% endif %}
-              </div>
-            </div>
-
-            {% if last_error %}
-              <div id="scanErrorMessage" class="alert alert-danger py-2 mb-3">
-                {{ last_error }}
-              </div>
-            {% else %}
-              <div id="scanErrorMessage" class="d-none"></div>
-            {% endif %}
-
-            <dl class="row mb-0">
-              <dt class="col-6 text-muted small">Range</dt>
-              <dd class="col-6 small">{{ current_range }}</dd>
-
-              <dt class="col-6 text-muted small">Hosts gesamt</dt>
-              <dd class="col-6 small" id="scanHostsTotal">{{ stats.get('hosts_total', 0) }}</dd>
-
-              <dt class="col-6 text-muted small">Ports</dt>
-              <dd class="col-6 small">{{ ports | join(', ') }}</dd>
-
-              <dt class="col-6 text-muted small">Dauer</dt>
-              <dd class="col-6 small" id="scanDuration">
-                {% if stats.get('duration') %}
-                  {{ "%.2f" | format(stats.get('duration')) }} s
-                {% else %}
-                  -
-                {% endif %}
-              </dd>
-
-              <dt class="col-6 text-muted small">Gefundene Geraete</dt>
-              <dd class="col-6 small" id="scanDevicesCount">{{ devices | length }}</dd>
-            </dl>
-          </div>
-        </div>
-      </div>
-      <div class="col-lg-8">
-        <form id="scanForm" action="{{ url_for('trigger_scan') }}" method="post" class="card shadow-sm h-100">
-          <div class="card-body d-flex flex-column gap-3">
-            <div>
-              <label for="ip_range" class="form-label fw-semibold">IP-Range</label>
-              <input type="text"
-                     class="form-control form-control-lg"
-                     id="ip_range"
-                     name="ip_range"
-                     value="{{ current_range }}"
-                     placeholder="z.B. 192.168.0.0/24 oder 192.168.0.10-192.168.0.50">
-              <div class="form-text">
-                Unterstuetzt CIDR oder Start-Ende. Standard: lokales /24 Netz.
-              </div>
-            </div>
-
-            <div>
-              <div class="form-label fw-semibold">Ports</div>
-              <div class="d-flex flex-wrap gap-3">
-                {% for port in [80, 443] %}
-                  <div class="form-check">
-                    <input class="form-check-input"
-                           type="checkbox"
-                           value="{{ port }}"
-                           id="port{{ port }}"
-                           name="ports"
-                           {% if port in ports %}checked{% endif %}>
-                    <label class="form-check-label" for="port{{ port }}">Port {{ port }}</label>
-                  </div>
-                {% endfor %}
-              </div>
-              <div class="form-text">Port 80 = HTTP, Port 443 = HTTPS.</div>
-            </div>
-
-            <div class="text-end mt-auto">
-              <button type="submit" class="btn btn-primary btn-lg">
-                <i class="bi bi-broadcast-pin me-1"></i> Scan starten
-              </button>
-            </div>
-          </div>
-        </form>
       </div>
     </div>
   </div>
@@ -207,7 +98,7 @@
           <i class="bi bi-search fs-4"></i>
           <div>
             <div class="fw-semibold">Noch keine Geraete gefunden</div>
-            <div class="small">Starte einen Scan, um Tasmota-Geraete im Netzwerk zu entdecken.</div>
+            <div class="small">Starte einen Scan über den Menüpunkt "Scan".</div>
           </div>
         </div>
       </div>
@@ -219,73 +110,13 @@
 {% block scripts %}
   <script>
     (function() {
-      const statusUrl = "{{ url_for('scan_status') }}";
-      const statusPill = document.getElementById('scanStatusPill');
-      const barFill = document.getElementById('scanProgressBarFill');
-      const progressText = document.getElementById('scanProgressText');
-      const lastIpEl = document.getElementById('scanLastIp');
-      const errorBox = document.getElementById('scanErrorMessage');
-      const hostsEl = document.getElementById('scanHostsTotal');
-      const durationEl = document.getElementById('scanDuration');
-      const devicesCountEl = document.getElementById('scanDevicesCount');
-      const lastScanEl = document.getElementById('lastScanTime');
-      const devicesBadge = document.getElementById('devicesCountBadge');
+      const statusUrl = "{{ url_for('devices_refresh') }}";
       const devicesBody = document.getElementById('devicesTableBody');
       const devicesWrapper = document.getElementById('devicesTableWrapper');
       const devicesEmpty = document.getElementById('devicesEmptyState');
-      const initialStatus = "{{ status }}";
-
-      function formatPercent(done, total) {
-        if (!total || total <= 0) return 0;
-        return Math.min(100, Math.round((done / total) * 100));
-      }
-
-      function setStatusBadge(state) {
-        if (!statusPill) return;
-        statusPill.textContent = state;
-        statusPill.className = 'badge text-uppercase';
-        const map = {
-          running: 'text-bg-warning',
-          done: 'text-bg-success',
-          error: 'text-bg-danger',
-          idle: 'text-bg-secondary',
-        };
-        statusPill.classList.add(map[state] || 'text-bg-secondary');
-      }
-
-      function setProgress(done, total, state, lastIp) {
-        if (!barFill || !progressText) return;
-        const pct = formatPercent(done, total);
-        barFill.style.width = pct + '%';
-        barFill.setAttribute('aria-valuenow', pct);
-        barFill.classList.toggle('progress-bar-animated', state === 'running');
-        progressText.textContent = `${done}/${total} (${pct}%)`;
-        if (lastIpEl) {
-          if (lastIp) {
-            lastIpEl.textContent = `Letzte IP: ${lastIp}`;
-          } else {
-            lastIpEl.innerHTML = '&nbsp;';
-          }
-        }
-      }
-
-      function updateStats(stats, devicesCount) {
-        if (hostsEl) hostsEl.textContent = stats.hosts_total ?? 0;
-        if (durationEl) {
-          const dur = stats.duration;
-          durationEl.textContent = dur ? `${Number(dur).toFixed(2)} s` : '-';
-        }
-        if (devicesCountEl) devicesCountEl.textContent = devicesCount ?? 0;
-        if (lastScanEl) {
-          if (stats.started_at) {
-            const dt = new Date(stats.started_at);
-            lastScanEl.textContent = `Letzter Scan: ${dt.toLocaleString()}`;
-          } else {
-            lastScanEl.textContent = 'Letzter Scan: noch keiner';
-          }
-        }
-        if (devicesBadge) devicesBadge.textContent = devicesCount ?? 0;
-      }
+      const devicesBadge = document.getElementById('devicesCountBadge');
+      const lastScanEl = document.getElementById('lastScanTime');
+      const refreshMs = {{ refresh_interval_ms|int }};
 
       function renderDevices(devices) {
         if (!devicesBody) return;
@@ -328,44 +159,35 @@
           if (devicesWrapper) devicesWrapper.style.display = 'none';
           if (devicesEmpty) devicesEmpty.classList.remove('d-none');
         }
+        if (devicesBadge) devicesBadge.textContent = devices.length || 0;
       }
 
-      function poll() {
-        fetch(statusUrl)
-          .then((resp) => resp.json())
-          .then((data) => {
-            const state = data.status || 'idle';
-            const prog = data.progress || { done: 0, total: 0, last_ip: null };
-            setStatusBadge(state);
-            setProgress(prog.done || 0, prog.total || 0, state, prog.last_ip);
-            setError(data.last_error);
-            updateStats(data.stats || {}, data.devices_found || 0);
-            renderDevices(data.devices || []);
-
-            if (state === 'running') {
-              setTimeout(poll, 1000);
-            } else {
-              setTimeout(poll, 3000);
-            }
-          })
-          .catch(() => {
-            setTimeout(poll, 3000);
-          });
-      }
-
-      function setError(message) {
-        if (!errorBox) return;
-        if (message) {
-          errorBox.className = 'alert alert-danger py-2 mb-3';
-          errorBox.textContent = message;
+      function updateMeta(stats) {
+        if (!lastScanEl) return;
+        if (stats && stats.started_at) {
+          const dt = new Date(stats.started_at);
+          lastScanEl.textContent = `Letzter Scan: ${dt.toLocaleString()}`;
         } else {
-          errorBox.className = 'd-none';
-          errorBox.textContent = '';
+          lastScanEl.textContent = 'Letzter Scan: noch keiner';
         }
       }
 
-      setStatusBadge(initialStatus);
-      setTimeout(poll, 200);
+      function pollDevices() {
+        fetch(statusUrl)
+          .then((resp) => resp.json())
+          .then((data) => {
+            renderDevices(data.devices || []);
+            updateMeta(data.stats || {});
+          })
+          .catch(() => {
+            // ignore errors, retry later
+          })
+          .finally(() => {
+            setTimeout(pollDevices, refreshMs);
+          });
+      }
+
+      setTimeout(pollDevices, refreshMs);
     })();
   </script>
 {% endblock %}

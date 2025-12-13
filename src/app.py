@@ -3,15 +3,23 @@ import logging
 import os
 from datetime import datetime
 from threading import Lock, Thread
-from typing import List
+from typing import Dict, List
 
 from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 
-from .tasmota_scanner import DEFAULT_PORTS, ScanError, expand_ip_range, scan_range
+from .tasmota_scanner import (
+    DEFAULT_PORTS,
+    ScanError,
+    expand_ip_range,
+    fetch_device_status,
+    scan_range,
+)
 from .version import APP_VERSION
 
 DEFAULT_SCAN_RANGE = os.getenv("TASMOTA_FLEET_RANGE", "192.168.1.0/24")
 SCAN_CACHE_FILE = os.getenv("SCAN_CACHE_FILE", "scan_results.json")
+SETTINGS_FILE = os.getenv("TASMOTA_FLEET_SETTINGS", "TasmotaFleetSet.JSON")
+DEFAULT_REFRESH_MS = 5000
 
 # In-memory cache for the last scan result
 scan_state = {
@@ -37,90 +45,180 @@ def create_app() -> Flask:
     app.config["DEFAULT_SCAN_RANGE"] = DEFAULT_SCAN_RANGE
     app.config["SCAN_MAX_HOSTS"] = int(os.getenv("SCAN_MAX_HOSTS", "512"))
     app.config["SCAN_CACHE_FILE"] = SCAN_CACHE_FILE
+    app.config["REFRESH_INTERVAL_MS"] = int(os.getenv("REFRESH_INTERVAL_MS", str(DEFAULT_REFRESH_MS)))
+    app.config["SETTINGS_FILE"] = SETTINGS_FILE
+
+    # load settings from file (overrides defaults)
+    settings_notice = _load_settings(app)
 
     # load cached results (if any) at startup
     startup_notice = _load_cached_results(app.config["SCAN_CACHE_FILE"])
     if startup_notice:
         app.config["STARTUP_NOTICE"] = startup_notice
+    if settings_notice:
+        app.config["SETTINGS_NOTICE"] = settings_notice
 
     @app.context_processor
     def inject_globals():
         return {
             "app_version": APP_VERSION,
-            "nav_scan_form_id": "scanForm",
         }
 
     @app.route("/")
     def index():
         notice = app.config.pop("STARTUP_NOTICE", None)
+        settings_notice = app.config.pop("SETTINGS_NOTICE", None)
         if notice:
             flash(notice, "warning")
+        if settings_notice:
+            flash(settings_notice, "warning")
         return render_template(
             "index.html",
             scan_state=scan_state,
             default_range=app.config["DEFAULT_SCAN_RANGE"],
+            refresh_interval_ms=app.config["REFRESH_INTERVAL_MS"],
         )
 
-    @app.route("/scan", methods=["POST"])
-    def trigger_scan():
-        ip_range = request.form.get("ip_range", app.config["DEFAULT_SCAN_RANGE"]).strip()
-        selected_ports = _parse_ports(request.form.getlist("ports"))
-        ports = selected_ports or list(DEFAULT_PORTS)
+    @app.route("/scan", methods=["GET", "POST"])
+    def scan_page():
+        if request.method == "POST":
+            ip_range = request.form.get("ip_range", app.config["DEFAULT_SCAN_RANGE"]).strip()
+            selected_ports = _parse_ports(request.form.getlist("ports"))
+            ports = selected_ports or list(DEFAULT_PORTS)
 
-        with state_lock:
-            if scan_state["status"] == "running":
-                flash("Ein Scan laeuft bereits. Bitte warte einen Moment.", "warning")
-                return redirect(url_for("index"))
+            with state_lock:
+                if scan_state["status"] == "running":
+                    flash("Ein Scan laeuft bereits. Bitte warte einen Moment.", "warning")
+                    return redirect(url_for("scan_page"))
 
-        try:
-            targets = expand_ip_range(ip_range, max_hosts=app.config["SCAN_MAX_HOSTS"])
-        except ScanError as exc:
-            flash(str(exc), "danger")
-            return redirect(url_for("index"))
+            try:
+                targets = expand_ip_range(ip_range, max_hosts=app.config["SCAN_MAX_HOSTS"])
+            except ScanError as exc:
+                flash(str(exc), "danger")
+                return redirect(url_for("scan_page"))
 
-        with state_lock:
-            scan_state.update(
-                {
-                    "range": ip_range,
-                    "devices": [],
-                    "status": "running",
-                    "progress": {"done": 0, "total": len(targets), "last_ip": None},
-                    "last_error": None,
-                    "stats": {
-                        "duration": None,
-                        "started_at": datetime.now(),
-                        "hosts_total": len(targets),
-                        "ports": ports,
-                    },
-                }
-            )
+            with state_lock:
+                scan_state.update(
+                    {
+                        "range": ip_range,
+                        "devices": [],
+                        "status": "running",
+                        "progress": {"done": 0, "total": len(targets), "last_ip": None},
+                        "last_error": None,
+                        "stats": {
+                            "duration": None,
+                            "started_at": datetime.now(),
+                            "hosts_total": len(targets),
+                            "ports": ports,
+                        },
+                    }
+                )
 
-        logger.info("Starte Scan: Range=%s, Hosts=%d, Ports=%s", ip_range, len(targets), ports)
-        Thread(
-            target=_run_scan,
-            args=(ip_range, ports, app.config["SCAN_MAX_HOSTS"], app.config["SCAN_CACHE_FILE"]),
-            daemon=True,
-        ).start()
+            logger.info("Starte Scan: Range=%s, Hosts=%d, Ports=%s", ip_range, len(targets), ports)
+            Thread(
+                target=_run_scan,
+                args=(ip_range, ports, app.config["SCAN_MAX_HOSTS"], app.config["SCAN_CACHE_FILE"]),
+                daemon=True,
+            ).start()
 
-        flash("Scan gestartet - Fortschritt wird angezeigt.", "info")
-        return redirect(url_for("index"))
+            flash("Scan gestartet - Fortschritt wird angezeigt.", "info")
+            return redirect(url_for("scan_page"))
+
+        return render_template(
+            "scan.html",
+            scan_state=scan_state,
+            default_range=app.config["DEFAULT_SCAN_RANGE"],
+            refresh_interval_ms=app.config["REFRESH_INTERVAL_MS"],
+        )
 
     @app.route("/scan/status")
     def scan_status():
+        payload = _build_status_payload(include_devices=True)
+        return jsonify(payload)
+
+    @app.route("/settings", methods=["GET", "POST"])
+    def settings_page():
+        if request.method == "POST":
+            new_range = request.form.get("default_range", app.config["DEFAULT_SCAN_RANGE"]).strip()
+            new_max_hosts_raw = request.form.get("scan_max_hosts", str(app.config["SCAN_MAX_HOSTS"])).strip()
+            new_cache_file = request.form.get("scan_cache_file", app.config["SCAN_CACHE_FILE"]).strip()
+            new_refresh_raw = request.form.get("refresh_interval_ms", str(app.config["REFRESH_INTERVAL_MS"])).strip()
+
+            # validate range
+            try:
+                expand_ip_range(new_range, max_hosts=1024)
+            except ScanError as exc:
+                flash(f"IP-Range ungültig: {exc}", "danger")
+                return redirect(url_for("settings_page"))
+
+            # validate max hosts
+            try:
+                new_refresh_ms = int(new_refresh_raw)
+                if new_refresh_ms < 500:
+                    raise ValueError
+            except ValueError:
+                flash("Refresh-Time muss mindestens 500 ms betragen.", "danger")
+                return redirect(url_for("settings_page"))
+
+            # adjust max_hosts to at least cover current range size to avoid hard errors
+            try:
+                current_hosts = len(expand_ip_range(new_range, max_hosts=10_000))
+            except ScanError:
+                current_hosts = 0
+            new_max_hosts = max(current_hosts, _coerce_positive_int(new_max_hosts_raw, app.config["SCAN_MAX_HOSTS"]))
+
+            with state_lock:
+                app.config["DEFAULT_SCAN_RANGE"] = new_range
+                app.config["SCAN_MAX_HOSTS"] = new_max_hosts
+                app.config["SCAN_CACHE_FILE"] = new_cache_file or SCAN_CACHE_FILE
+                app.config["REFRESH_INTERVAL_MS"] = new_refresh_ms
+                # update scan_state default range for UI convenience
+                if scan_state.get("status") == "idle":
+                    scan_state["range"] = new_range
+
+            _save_settings(app)
+
+            flash("Einstellungen gespeichert.", "success")
+            return redirect(url_for("settings_page"))
+
+        return render_template(
+            "settings.html",
+            default_range=app.config["DEFAULT_SCAN_RANGE"],
+            scan_max_hosts=app.config["SCAN_MAX_HOSTS"],
+            scan_cache_file=app.config["SCAN_CACHE_FILE"],
+            refresh_interval_ms=app.config["REFRESH_INTERVAL_MS"],
+        )
+
+    @app.route("/devices/refresh")
+    def devices_refresh():
+        # take snapshot to avoid holding lock during network I/O
         with state_lock:
-            stats = scan_state.get("stats", {}).copy()
-            started_at = stats.get("started_at")
-            if isinstance(started_at, datetime):
-                stats["started_at"] = started_at.isoformat()
-            payload = {
-                "status": scan_state.get("status"),
-                "progress": scan_state.get("progress", {}),
-                "stats": stats,
-                "devices_found": len(scan_state.get("devices", [])),
-                "devices": list(scan_state.get("devices", [])),
-                "range": scan_state.get("range"),
-                "last_error": scan_state.get("last_error"),
-            }
+            current_devices = [dict(d) for d in scan_state.get("devices", [])]
+
+        refreshed: List[Dict] = []
+        for dev in current_devices:
+            info = fetch_device_status(dev.get("ip"), int(dev.get("port", 80)), request_timeout=1.2)
+            if info:
+                dev.update(
+                    {
+                        "power": info.get("power", dev.get("power")),
+                        "rssi": info.get("rssi", dev.get("rssi")),
+                        "version": info.get("version", dev.get("version")),
+                        "hostname": info.get("hostname", dev.get("hostname")),
+                        "friendly_name": info.get("friendly_name", dev.get("friendly_name")),
+                        "name": info.get("name", dev.get("name")),
+                    }
+                )
+            refreshed.append(dev)
+
+        with state_lock:
+            scan_state["devices"] = refreshed
+
+        payload = {
+            "devices": refreshed,
+            "count": len(refreshed),
+            "stats": _serialize_stats(scan_state.get("stats", {})),
+        }
         return jsonify(payload)
 
     return app
@@ -192,9 +290,10 @@ def _persist_scan_results(path: str) -> None:
         payload = _export_state_for_persist()
         with open(path, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
-        logger.info("Scan-Ergebnisse gespeichert: %s", path)
     except Exception:
         logger.exception("Konnte Scan-Ergebnisse nicht speichern: %s", path)
+    else:
+        logger.info("Scan-Ergebnisse gespeichert: %s", path)
 
 
 def _export_state_for_persist() -> dict:
@@ -214,6 +313,16 @@ def _export_state_for_persist() -> dict:
         stats["started_at"] = stats["started_at"].isoformat()
     payload["stats"] = stats
     return payload
+
+
+def _coerce_positive_int(value: str, fallback: int, minimum: int = 1) -> int:
+    try:
+        iv = int(value)
+        if iv < minimum:
+            return fallback
+        return iv
+    except Exception:
+        return fallback
 
 
 def _load_cached_results(path: str) -> str | None:
@@ -249,3 +358,72 @@ def _load_cached_results(path: str) -> str | None:
 
     logger.info("Gespeicherte Scan-Ergebnisse geladen: %s", path)
     return None
+
+
+def _serialize_stats(stats: dict) -> dict:
+    stats_copy = stats.copy()
+    started_at = stats_copy.get("started_at")
+    if isinstance(started_at, datetime):
+        stats_copy["started_at"] = started_at.isoformat()
+    return stats_copy
+
+
+def _build_status_payload(include_devices: bool = False) -> dict:
+    with state_lock:
+        stats = _serialize_stats(scan_state.get("stats", {}))
+        payload = {
+            "status": scan_state.get("status"),
+            "progress": scan_state.get("progress", {}),
+            "stats": stats,
+            "devices_found": len(scan_state.get("devices", [])),
+            "range": scan_state.get("range"),
+            "last_error": scan_state.get("last_error"),
+        }
+        if include_devices:
+            payload["devices"] = list(scan_state.get("devices", []))
+    return payload
+
+
+def _load_settings(app: Flask) -> str | None:
+    path = app.config["SETTINGS_FILE"]
+    if not os.path.exists(path):
+        return "Keine Settings-Datei gefunden. Es werden Standardwerte verwendet."
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        logger.exception("Konnte Settings nicht laden.")
+        return "Settings-Datei konnte nicht geladen werden. Es werden Standardwerte verwendet."
+
+    new_range = data.get("default_range") or app.config["DEFAULT_SCAN_RANGE"]
+    new_max_hosts = _coerce_positive_int(str(data.get("scan_max_hosts", "")), app.config["SCAN_MAX_HOSTS"], 1)
+    new_cache = data.get("scan_cache_file") or app.config["SCAN_CACHE_FILE"]
+    new_refresh = _coerce_positive_int(str(data.get("refresh_interval_ms", "")), app.config["REFRESH_INTERVAL_MS"], 500)
+
+    with state_lock:
+        app.config["DEFAULT_SCAN_RANGE"] = new_range
+        app.config["SCAN_MAX_HOSTS"] = new_max_hosts
+        app.config["SCAN_CACHE_FILE"] = new_cache
+        app.config["REFRESH_INTERVAL_MS"] = new_refresh
+        if scan_state.get("status") == "idle":
+            scan_state["range"] = new_range
+
+    logger.info("Settings geladen: %s", path)
+    return None
+
+
+def _save_settings(app: Flask) -> None:
+    path = app.config["SETTINGS_FILE"]
+    payload = {
+        "default_range": app.config["DEFAULT_SCAN_RANGE"],
+        "scan_max_hosts": app.config["SCAN_MAX_HOSTS"],
+        "scan_cache_file": app.config["SCAN_CACHE_FILE"],
+        "refresh_interval_ms": app.config["REFRESH_INTERVAL_MS"],
+    }
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        logger.info("Settings gespeichert: %s", path)
+    except Exception:
+        logger.exception("Konnte Settings nicht speichern: %s", path)

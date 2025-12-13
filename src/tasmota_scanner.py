@@ -212,6 +212,14 @@ def _probe_tasmota(ip: str, port: int, request_timeout: float) -> Optional[Dict]
     return None
 
 
+def fetch_device_status(ip: str, port: int, request_timeout: float = 1.2) -> Optional[Dict]:
+    """
+    Lightweight probe for a known device to refresh status (e.g., POWER, RSSI).
+    Returns the same shape as _probe_tasmota (or None if unreachable).
+    """
+    return _probe_tasmota(ip, port, request_timeout)
+
+
 def _parse_status_json(resp: requests.Response) -> Optional[Dict]:
     try:
         payload = resp.json()
