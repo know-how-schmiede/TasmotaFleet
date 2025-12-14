@@ -127,3 +127,7 @@ sudo systemctl status tasmotafleet --no-pager
 ## Hinweise zum Scan
 - TCP-Connect auf Port 80/443, danach Status-API. HTTPS wird ohne Zertifikatspruefung angesprochen, damit selbstsignierte Geraete erreichbar sind.
 - Ergebnisse werden zusaetzlich in `scan_results.json` persistiert (per `SCAN_CACHE_FILE` konfigurierbar) und beim Start geladen, falls vorhanden.
+
+![TasmotaFleet - Dashboard](doku/TasmotaFleet_Dashboard.png)
+![TasmotaFleet - Settings](doku/TasmotaFleet_Settings.png)
+![TasmotaFleet - Scan](doku/TasmotaFleet_Scan.png)
