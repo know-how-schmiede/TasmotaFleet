@@ -1,3 +1,4 @@
+![TasmotaFleet Logo](doku/Logo_TasmotaFleet.png)
 # TasmotaFleet
 Flask-App zum Auffinden von Tasmota-Geraeten im lokalen Netz. Sie scannt einen IP-Range auf den Ports 80 (HTTP) und 443 (HTTPS), fragt – wenn moeglich – die Status-API ab und listet die gefundenen Geraete auf dem Dashboard.
 
