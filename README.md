@@ -128,6 +128,17 @@ sudo systemctl status tasmotafleet --no-pager
 - TCP-Connect auf Port 80/443, danach Status-API. HTTPS wird ohne Zertifikatspruefung angesprochen, damit selbstsignierte Geraete erreichbar sind.
 - Ergebnisse werden zusaetzlich in `scan_results.json` persistiert (per `SCAN_CACHE_FILE` konfigurierbar) und beim Start geladen, falls vorhanden.
 
+## TasmotaFleet Dashboard
+*Zentrale Übersicht aller eingebundenen Tasmota-Geräte.*
+Das Dashboard zeigt den aktuellen Online-Status, Gerätnamen, IP-Adressen, Firmware-Versionen sowie den Schaltzustand der Geräte. Über Schnellaktionen lassen sich Geräte direkt ein- und ausschalten oder aufrufen.
 ![TasmotaFleet - Dashboard](doku/TasmotaFleet_Dashboard.png)
+
+## TasmotaFleet Settings
+*Zentrale Konfiguration des TasmotaFleet-Systems.*
+In den Einstellungen werden Netzwerkparameter, Scan-Bereiche, Aktualisierungsintervalle sowie optionale Zugangsdaten verwaltet. Änderungen wirken sich direkt auf Dashboard und Gerätescan aus.
 ![TasmotaFleet - Settings](doku/TasmotaFleet_Settings.png)
+
+## TasmotaFleet Scan
+*Automatischer Netzwerkscan zur Erkennung von Tasmota-Geräten.*
+Der Scan durchsucht definierte IP-Bereiche nach erreichbaren Tasmota-Instanzen, liest Gerätestatus und Basisinformationen aus und fügt neue Geräte automatisch zur Verwaltung hinzu.
 ![TasmotaFleet - Scan](doku/TasmotaFleet_Scan.png)
