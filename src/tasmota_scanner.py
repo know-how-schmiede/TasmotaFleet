@@ -4,6 +4,7 @@ import socket
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Dict, List, Optional, Sequence
+import logging
 
 import requests
 import urllib3
@@ -12,6 +13,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 DEFAULT_PORTS: Sequence[int] = (80, 443)
+logger = logging.getLogger(__name__)
 
 
 class ScanError(ValueError):
@@ -161,27 +163,54 @@ def _probe_tasmota(ip: str, port: int, request_timeout: float) -> Optional[Dict]
     base_url = f"{protocol}://{ip}"
 
     # First try JSON-based API endpoints
+    parsed_payloads = []
+    endpoint_hits = []
+    endpoint_errors = []
     for endpoint in ("/cm?cmnd=Status%200", "/cm?cmnd=Status%208"):
         url = f"{base_url}{endpoint}"
+        timeout = max(request_timeout, 2.5) if endpoint.startswith("/cm?cmnd=Status%200") else request_timeout
         try:
-            resp = requests.get(url, timeout=request_timeout, verify=False)
-        except requests.RequestException:
+            resp = requests.get(url, timeout=timeout, verify=False)
+        except requests.RequestException as exc:
+            endpoint_errors.append((endpoint, f"request-failed: {exc}"))
             continue
 
         parsed = _parse_status_json(resp)
         if parsed:
-            parsed.update(
-                {
-                    "ip": ip,
-                    "port": port,
-                    "protocol": protocol,
-                    "endpoint": endpoint,
-                    "http_status": resp.status_code,
-                    "url": base_url,
-                    "detected_via": "status-json",
-                }
+            parsed_payloads.append(parsed)
+            endpoint_hits.append((endpoint, resp.status_code))
+        else:
+            endpoint_errors.append(
+                (
+                    endpoint,
+                    f"parse-failed status={resp.status_code} len={len(resp.content) if resp.content is not None else 'n/a'}",
+                )
             )
-            return parsed
+
+    if parsed_payloads:
+        merged = _merge_device_infos(parsed_payloads)
+        merged.update(
+            {
+                "ip": ip,
+                "port": port,
+                "protocol": protocol,
+                "endpoint": ",".join([hit[0] for hit in endpoint_hits]),
+                "http_status": endpoint_hits[0][1] if endpoint_hits else None,
+                "url": base_url,
+                "detected_via": "status-json",
+            }
+        )
+        merged["name"] = (
+            merged.get("device_name")
+            or merged.get("friendly_name")
+            or merged.get("hostname")
+            or merged.get("name")
+            or "Tasmota Geraet"
+        )
+        return merged
+
+    if endpoint_errors:
+        logger.debug("Kein Status-JSON fuer %s:%s -> %s", ip, port, endpoint_errors)
 
     # Fallback: check for Tasmota markers in the HTML landing page
     try:
@@ -235,8 +264,19 @@ def _parse_status_json(resp: requests.Response) -> Optional[Dict]:
     status_net = payload.get("StatusNET", {}) or {}
     status_sts = payload.get("StatusSTS", {}) or {}
 
-    friendly_name = _pick_friendly_name(status, status_prm)
-    hostname = status_net.get("Hostname") or status.get("Hostname") or status.get("DeviceName")
+    device_name = (
+        status.get("DeviceName")
+        or status_sts.get("DeviceName")
+        or status_prm.get("DeviceName")
+    )
+    friendly_name = _pick_friendly_name(status, status_prm, status_sts)
+    # Prefer the hostname reported by the device itself, not reverse DNS lookups
+    hostname = (
+        status_net.get("Hostname")
+        or status_prm.get("Hostname")
+        or status.get("Hostname")
+        or status_sts.get("Hostname")
+    )
     version = status_fwr.get("Version") or status.get("Version")
     mac = status_net.get("Mac") or status_net.get("MAC")
     wifi = status_sts.get("Wifi") or status_sts.get("Wifi1") or {}
@@ -244,11 +284,13 @@ def _parse_status_json(resp: requests.Response) -> Optional[Dict]:
     module = status_prm.get("Module") or status.get("Module")
     power = status_sts.get("POWER") or status_sts.get("POWER1") or status_sts.get("POWER2")
     uptime = status_sts.get("Uptime") or status_sts.get("UptimeSec")
+    name = device_name or friendly_name or hostname or "Tasmota Geraet"
 
     return {
-        "name": friendly_name or hostname or "Tasmota Geraet",
+        "name": name,
         "hostname": hostname,
         "friendly_name": friendly_name,
+        "device_name": device_name,
         "version": version,
         "mac": mac,
         "rssi": rssi,
@@ -258,8 +300,8 @@ def _parse_status_json(resp: requests.Response) -> Optional[Dict]:
     }
 
 
-def _pick_friendly_name(status: Dict, status_prm: Dict) -> Optional[str]:
-    for source in (status, status_prm):
+def _pick_friendly_name(*sources: Dict) -> Optional[str]:
+    for source in sources:
         fn = source.get("FriendlyName")
         if isinstance(fn, list) and fn:
             if fn[0]:
@@ -267,3 +309,18 @@ def _pick_friendly_name(status: Dict, status_prm: Dict) -> Optional[str]:
         elif isinstance(fn, str) and fn.strip():
             return fn.strip()
     return None
+
+
+def _merge_device_infos(infos: List[Dict]) -> Dict:
+    """
+    Combine multiple status payloads, preferring the first non-empty value
+    and replacing default placeholders.
+    """
+    merged: Dict = {}
+    for info in infos:
+        for key, val in info.items():
+            if val in (None, "", []):
+                continue
+            if key not in merged or merged.get(key) in (None, "", [], "Tasmota Geraet"):
+                merged[key] = val
+    return merged

@@ -58,7 +58,7 @@
                   <td>
                     <div class="fw-semibold">{{ dev.name }}</div>
                     <div class="text-muted small">
-                      {{ dev.hostname or 'Hostname unbekannt' }}
+                      {{ dev.hostname or dev.device_name or 'Hostname unbekannt' }}
                     </div>
                   </td>
                   <td>
@@ -127,7 +127,7 @@
             tr.innerHTML = `
               <td>
                 <div class="fw-semibold">${dev.name || 'Tasmota Geraet'}</div>
-                <div class="text-muted small">${dev.hostname || 'Hostname unbekannt'}</div>
+                <div class="text-muted small">${dev.hostname || dev.device_name || 'Hostname unbekannt'}</div>
               </td>
               <td>
                 <a href="${dev.url}" target="_blank" rel="noreferrer" class="link-underline link-underline-opacity-0">

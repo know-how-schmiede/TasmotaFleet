@@ -1,4 +1,6 @@
 # Timeline NeoFab
+## Version 0.2.10
+Fix Scan Fehlverhalten
 ## Version 0.2.9
 Logo
 ## Version 0.2.8

@@ -39,6 +39,28 @@ logging.basicConfig(
 logger = logging.getLogger("tasmotafleet")
 
 
+def _enable_scanner_debug_logging_from_env() -> None:
+    """
+    Optional verbose logs for tasmota_scanner, controlled via env var TASMOTA_SCANNER_DEBUG.
+    """
+    flag = os.getenv("TASMOTA_SCANNER_DEBUG", "")
+    if str(flag).lower() not in ("1", "true", "yes", "debug"):
+        return
+
+    scanner_logger = logging.getLogger("src.tasmota_scanner")
+    scanner_logger.setLevel(logging.DEBUG)
+    if not scanner_logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+        scanner_logger.addHandler(handler)
+    scanner_logger.propagate = False
+    logger.info("Scanner Debug-Logging aktiviert (TASMOTA_SCANNER_DEBUG=%s)", flag)
+
+
+_enable_scanner_debug_logging_from_env()
+
+
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-tasmota-fleet")
@@ -206,6 +228,7 @@ def create_app() -> Flask:
                         "version": info.get("version", dev.get("version")),
                         "hostname": info.get("hostname", dev.get("hostname")),
                         "friendly_name": info.get("friendly_name", dev.get("friendly_name")),
+                        "device_name": info.get("device_name", dev.get("device_name")),
                         "name": info.get("name", dev.get("name")),
                     }
                 )
@@ -255,6 +278,17 @@ def _run_scan(ip_range: str, ports: List[int], max_hosts: int, cache_path: str) 
             scan_state["status"] = "error"
             scan_state["last_error"] = str(exc)
         return
+
+    logger.info("Gefundene Devices (%d):", len(result["devices"]))
+    for dev in result["devices"]:
+        name = (
+            dev.get("device_name")
+            or dev.get("name")
+            or dev.get("friendly_name")
+            or dev.get("hostname")
+            or "Tasmota Geraet"
+        )
+        logger.info("  %s @ %s:%s", name, dev.get("ip"), dev.get("port"))
 
     with state_lock:
         scan_state["devices"] = result["devices"]
