@@ -35,8 +35,6 @@ pip install -r requirements.txt
 ## Start
 ```bash
 flask --app src.app run --host 0.0.0.0 --port 5000
-# oder zum Entwickeln:
-python -m src.app
 ```
 
 Rufe danach `http://localhost:5000` im Browser auf.
