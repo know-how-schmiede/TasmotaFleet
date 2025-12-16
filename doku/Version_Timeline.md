@@ -1,4 +1,8 @@
 # Timeline NeoFab
+## Version 0.2.12
+Trennung von Scandaten und Settings-Daten
+## Version 0.2.11
+Fortschrittsbanken-Problem beim erneuten Scan
 ## Version 0.2.10
 Fix Scan Fehlverhalten
 ## Version 0.2.9

@@ -7,8 +7,14 @@
 {% set current_range = default_range if scan_state.get('status') != 'running' else scan_state.get('range', default_range) %}
 {% set ports = stats.get('ports', [80, 443]) %}
 {% set status = scan_state.get('status', 'idle') %}
-{% set progress = scan_state.get('progress', {'done': 0, 'total': 0, 'last_ip': None}) %}
-{% set percent = (progress.done / progress.total * 100) if progress.total else 0 %}
+{% set progress_raw = scan_state.get('progress', {'done': 0, 'total': 0, 'last_ip': None}) %}
+{% set progress_active = status == 'running' or (status == 'done' and progress_raw.done and progress_raw.total) %}
+{% if progress_active %}
+  {% set progress = progress_raw %}
+{% else %}
+  {% set progress = {'done': 0, 'total': 0, 'last_ip': None} %}
+{% endif %}
+{% set percent = (progress.done / progress.total * 100) if progress_active and progress.total else 0 %}
 {% set last_error = scan_state.get('last_error') %}
 
 <div class="row g-4">
@@ -177,13 +183,18 @@
 
       function setProgress(done, total, state, lastIp) {
         if (!barFill || !progressText) return;
-        const pct = formatPercent(done, total);
+        const isRunning = state === 'running';
+        const hasFinishedProgress = state === 'done' && total > 0 && done > 0;
+        const showProgress = isRunning || hasFinishedProgress;
+        const pct = showProgress ? formatPercent(done, total) : 0;
+        const shownDone = showProgress ? done : 0;
+        const shownTotal = showProgress ? total : 0;
         barFill.style.width = pct + '%';
         barFill.setAttribute('aria-valuenow', pct);
-        barFill.classList.toggle('progress-bar-animated', state === 'running');
-        progressText.textContent = `${done}/${total} (${pct}%)`;
+        barFill.classList.toggle('progress-bar-animated', isRunning);
+        progressText.textContent = `${shownDone}/${shownTotal} (${pct}%)`;
         if (lastIpEl) {
-          if (lastIp) {
+          if (isRunning && lastIp) {
             lastIpEl.textContent = `Letzte IP: ${lastIp}`;
           } else {
             lastIpEl.innerHTML = '&nbsp;';

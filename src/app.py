@@ -1,7 +1,8 @@
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
+from pathlib import Path
 from threading import Lock, Thread
 from typing import Dict, List
 
@@ -17,9 +18,13 @@ from .tasmota_scanner import (
 from .version import APP_VERSION
 
 DEFAULT_SCAN_RANGE = os.getenv("TASMOTA_FLEET_RANGE", "192.168.1.0/24")
-SCAN_CACHE_FILE = os.getenv("SCAN_CACHE_FILE", "scan_results.json")
-SETTINGS_FILE = os.getenv("TASMOTA_FLEET_SETTINGS", "TasmotaFleetSet.JSON")
+BASE_DIR = Path(__file__).resolve().parent
+# keep scan results and settings in separate files within the package directory by default
+SCAN_CACHE_FILE = os.getenv("SCAN_CACHE_FILE") or str(BASE_DIR / "scan_results.json")
+SETTINGS_FILE = os.getenv("TASMOTA_FLEET_SETTINGS") or str(BASE_DIR / "TasmotaFleetSet.JSON")
 DEFAULT_REFRESH_MS = 5000
+DEFAULT_PROGRESS = {"done": 0, "total": 0, "last_ip": None}
+PROGRESS_STALE_AFTER_SEC = 30
 
 # In-memory cache for the last scan result
 scan_state = {
@@ -27,7 +32,7 @@ scan_state = {
     "devices": [],
     "stats": {},
     "status": "idle",  # idle, running, done, error
-    "progress": {"done": 0, "total": 0, "last_ip": None},
+    "progress": DEFAULT_PROGRESS.copy(),
     "last_error": None,
 }
 state_lock = Lock()
@@ -59,6 +64,56 @@ def _enable_scanner_debug_logging_from_env() -> None:
 
 
 _enable_scanner_debug_logging_from_env()
+
+
+def _empty_progress(*, total: int = 0) -> dict:
+    """
+    Generate a fresh progress dict to avoid reusing shared mutable defaults.
+    """
+    return {"done": 0, "total": total, "last_ip": None}
+
+
+def _progress_for_status(status: str | None, progress: dict | None, stats: dict | None = None) -> dict:
+    """
+    Return progress for an active or freshly finished scan.
+    Progress from older runs is discarded so the UI starts empty after a reload.
+    """
+    if status == "running" and progress:
+        return {
+            "done": int(progress.get("done") or 0),
+            "total": int(progress.get("total") or 0),
+            "last_ip": progress.get("last_ip"),
+        }
+
+    if status == "done" and progress and stats:
+        finished_at = stats.get("started_at")
+        duration = stats.get("duration")
+        if isinstance(finished_at, datetime) and isinstance(duration, (int, float)):
+            finished_at = finished_at + timedelta(seconds=float(duration))
+            age = (datetime.now() - finished_at).total_seconds()
+            if age <= PROGRESS_STALE_AFTER_SEC:
+                return {
+                    "done": int(progress.get("done") or 0),
+                    "total": int(progress.get("total") or 0),
+                    "last_ip": progress.get("last_ip"),
+                }
+
+    return _empty_progress()
+
+
+def _scan_state_for_view() -> dict:
+    """
+    Create a snapshot of the scan_state that is safe for rendering
+    (e.g., strips stale progress values).
+    """
+    with state_lock:
+        snapshot = dict(scan_state)
+        snapshot["progress"] = _progress_for_status(
+            snapshot.get("status"),
+            snapshot.get("progress"),
+            snapshot.get("stats"),
+        )
+    return snapshot
 
 
 def create_app() -> Flask:
@@ -96,7 +151,7 @@ def create_app() -> Flask:
             flash(settings_notice, "warning")
         return render_template(
             "index.html",
-            scan_state=scan_state,
+            scan_state=_scan_state_for_view(),
             default_range=app.config["DEFAULT_SCAN_RANGE"],
             refresh_interval_ms=app.config["REFRESH_INTERVAL_MS"],
         )
@@ -125,7 +180,7 @@ def create_app() -> Flask:
                         "range": ip_range,
                         "devices": [],
                         "status": "running",
-                        "progress": {"done": 0, "total": len(targets), "last_ip": None},
+                        "progress": _empty_progress(total=len(targets)),
                         "last_error": None,
                         "stats": {
                             "duration": None,
@@ -148,7 +203,7 @@ def create_app() -> Flask:
 
         return render_template(
             "scan.html",
-            scan_state=scan_state,
+            scan_state=_scan_state_for_view(),
             default_range=app.config["DEFAULT_SCAN_RANGE"],
             refresh_interval_ms=app.config["REFRESH_INTERVAL_MS"],
         )
@@ -332,12 +387,14 @@ def _persist_scan_results(path: str) -> None:
 
 def _export_state_for_persist() -> dict:
     with state_lock:
+        status = scan_state.get("status")
+        stats = scan_state.get("stats", {})
         payload = {
             "range": scan_state.get("range"),
             "devices": scan_state.get("devices", []),
-            "stats": scan_state.get("stats", {}),
-            "status": scan_state.get("status"),
-            "progress": scan_state.get("progress", {}),
+            "stats": stats,
+            "status": status,
+            "progress": _progress_for_status(status, scan_state.get("progress"), stats),
             "last_error": scan_state.get("last_error"),
         }
 
@@ -378,14 +435,20 @@ def _load_cached_results(path: str) -> str | None:
         except ValueError:
             stats["started_at"] = None
 
+    status = data.get("status", "idle")
+    if status == "running":
+        # A running scan cannot survive an app restart; treat it as idle instead.
+        status = "idle"
+    progress = _progress_for_status(status, data.get("progress"), stats)
+
     with state_lock:
         scan_state.update(
             {
                 "range": data.get("range") or DEFAULT_SCAN_RANGE,
                 "devices": data.get("devices", []),
                 "stats": stats,
-                "status": data.get("status", "idle"),
-                "progress": data.get("progress", {"done": 0, "total": 0, "last_ip": None}),
+                "status": status,
+                "progress": progress,
                 "last_error": data.get("last_error"),
             }
         )
@@ -404,10 +467,12 @@ def _serialize_stats(stats: dict) -> dict:
 
 def _build_status_payload(include_devices: bool = False) -> dict:
     with state_lock:
-        stats = _serialize_stats(scan_state.get("stats", {}))
+        status = scan_state.get("status") or "idle"
+        stats_raw = scan_state.get("stats", {})
+        stats = _serialize_stats(stats_raw)
         payload = {
-            "status": scan_state.get("status"),
-            "progress": scan_state.get("progress", {}),
+            "status": status,
+            "progress": _progress_for_status(status, scan_state.get("progress"), stats_raw),
             "stats": stats,
             "devices_found": len(scan_state.get("devices", [])),
             "range": scan_state.get("range"),
