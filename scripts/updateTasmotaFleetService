@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+default_repo_dir="$(cd "${script_dir}/.." && pwd)"
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  cat <<'EOF'
+Usage: updateTasmotaFleetService [options]
+
+Options:
+  --repo-dir=PATH        Repo directory (default: repo root)
+  --service-user=USER    Repo owner user (default: tasmotafleet)
+  --service-name=NAME    systemd service name (default: tasmotafleet)
+  --non-interactive      Use defaults for missing values (no prompts)
+EOF
+  exit 0
+fi
+
+if [[ "$(id -u)" -ne 0 ]]; then
+  echo "ERROR: Run as root (sudo -i)."
+  exit 1
+fi
+
+if ! command -v systemctl >/dev/null 2>&1; then
+  echo "ERROR: systemctl not found. This container must use systemd."
+  exit 1
+fi
+
+REPO_DIR=""
+SERVICE_USER=""
+SERVICE_NAME=""
+NON_INTERACTIVE=0
+
+for arg in "$@"; do
+  case "$arg" in
+    --repo-dir=*)
+      REPO_DIR="${arg#*=}"
+      ;;
+    --service-user=*)
+      SERVICE_USER="${arg#*=}"
+      ;;
+    --service-name=*)
+      SERVICE_NAME="${arg#*=}"
+      ;;
+    --non-interactive)
+      NON_INTERACTIVE=1
+      ;;
+    *)
+      echo "Unknown option: $arg"
+      exit 1
+      ;;
+  esac
+done
+
+prompt() {
+  local label="$1"
+  local default="$2"
+  local value=""
+  if [[ "$NON_INTERACTIVE" -eq 1 ]]; then
+    printf '%s' "$default"
+    return
+  fi
+  read -r -p "${label} [${default}]: " value
+  if [[ -z "$value" ]]; then
+    value="$default"
+  fi
+  printf '%s' "$value"
+}
+
+REPO_DIR="${REPO_DIR:-$(prompt "Repo directory" "$default_repo_dir")}"
+SERVICE_USER="${SERVICE_USER:-$(prompt "Service user" "tasmotafleet")}"
+SERVICE_NAME="${SERVICE_NAME:-$(prompt "Service name" "tasmotafleet")}"
+
+if [[ ! -d "$REPO_DIR" ]]; then
+  echo "ERROR: Repo directory not found: $REPO_DIR"
+  exit 1
+fi
+
+REPO_DIR="$(cd "$REPO_DIR" && pwd)"
+
+if [[ ! -d "$REPO_DIR/.git" ]]; then
+  echo "ERROR: Git repo not found at ${REPO_DIR}"
+  exit 1
+fi
+
+if ! systemctl list-unit-files --type=service --no-legend | awk '{print $1}' | grep -Fxq "${SERVICE_NAME}.service"; then
+  echo "ERROR: Service not found: ${SERVICE_NAME}"
+  exit 1
+fi
+
+echo "Stopping service: ${SERVICE_NAME}"
+systemctl stop "$SERVICE_NAME"
+
+echo "Updating repo..."
+if id -u "$SERVICE_USER" >/dev/null 2>&1; then
+  runuser -u "$SERVICE_USER" -- git -C "$REPO_DIR" pull
+else
+  echo "WARNING: User ${SERVICE_USER} not found. Running git pull as root."
+  git -C "$REPO_DIR" pull
+fi
+
+echo "Starting service: ${SERVICE_NAME}"
+systemctl start "$SERVICE_NAME"
+systemctl status "$SERVICE_NAME" --no-pager
