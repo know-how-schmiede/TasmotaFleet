@@ -34,7 +34,7 @@ Run the setup script and press Enter to accept defaults:
 The script can start a test run. Open the web UI:
 
 ```
-http://<container-ip>:5000
+http://<container-ip>:8080
 ```
 
 Stop the test with Ctrl+C.

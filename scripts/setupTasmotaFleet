@@ -27,7 +27,7 @@ echo
 REPO_DIR="$(prompt "Path to TasmotaFleet repo" "$default_repo_dir")"
 SERVICE_USER="$(prompt "Service user" "tasmotafleet")"
 VENV_DIR="$(prompt "Python venv path" "${REPO_DIR}/.venv")"
-TEST_PORT="$(prompt "Test port" "5000")"
+TEST_PORT="$(prompt "Test port" "8080")"
 START_TEST_RAW="$(prompt "Start test run now? (y/n)" "y")"
 
 START_TEST="$(printf '%s' "$START_TEST_RAW" | tr '[:upper:]' '[:lower:]')"

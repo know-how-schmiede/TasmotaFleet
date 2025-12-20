@@ -13,7 +13,7 @@ Options:
   --venv-dir=PATH        Python venv path (default: <install-dir>/.venv)
   --service-user=USER    Service user (default: tasmotafleet)
   --service-name=NAME    systemd service name (default: tasmotafleet)
-  --port=PORT            Listen port (default: 5000)
+  --port=PORT            Listen port (default: 8080)
   --workers=N            Gunicorn workers (default: 2)
   --non-interactive      Use defaults for missing values (no prompts)
 EOF
@@ -87,7 +87,7 @@ INSTALL_DIR="${INSTALL_DIR:-$(prompt "Install directory" "$default_install_dir")
 VENV_DIR="${VENV_DIR:-$(prompt "Python venv path" "${INSTALL_DIR}/.venv")}"
 SERVICE_USER="${SERVICE_USER:-$(prompt "Service user" "tasmotafleet")}"
 SERVICE_NAME="${SERVICE_NAME:-$(prompt "Service name" "tasmotafleet")}"
-PORT="${PORT:-$(prompt "Listen port" "5000")}"
+PORT="${PORT:-$(prompt "Listen port" "8080")}"
 WORKERS="${WORKERS:-$(prompt "Gunicorn workers" "2")}"
 
 APP_FILE="${INSTALL_DIR}/src/app.py"

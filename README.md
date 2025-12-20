@@ -34,10 +34,10 @@ pip install -r requirements.txt
 
 ## Start
 ```bash
-flask --app src.app run --host 0.0.0.0 --port 5000
+flask --app src.app run --host 0.0.0.0 --port 8080
 ```
 
-Rufe danach `http://localhost:5000` im Browser auf.
+Rufe danach `http://localhost:8080` im Browser auf.
 
 ## Als Dienst laufen lassen
 ```
@@ -63,7 +63,7 @@ User=tasmotafleet
 Group=tasmotafleet
 WorkingDirectory=/home/tasmotafleet/projects/tasmotafleet/TasmotaFleet
 Environment="PATH=/home/tasmotafleet/projects/tasmotafleet/TasmotaFleet/.venv/bin"
-ExecStart=/home/tasmotafleet/projects/tasmotafleet/TasmotaFleet/.venv/bin/gunicorn -w 2 -b 0.0.0.0:5000 "src.app:create_app()"
+ExecStart=/home/tasmotafleet/projects/tasmotafleet/TasmotaFleet/.venv/bin/gunicorn -w 2 -b 0.0.0.0:8080 "src.app:create_app()"
 Restart=always
 RestartSec=2
 

@@ -371,7 +371,7 @@ def _run_scan(ip_range: str, ports: List[int], max_hosts: int, cache_path: str) 
 
 
 if __name__ == "__main__":
-    create_app().run(host="0.0.0.0", port=5000, debug=True)
+    create_app().run(host="0.0.0.0", port=8080, debug=True)
 
 
 def _persist_scan_results(path: str) -> None:
