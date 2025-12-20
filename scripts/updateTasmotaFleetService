@@ -12,6 +12,7 @@ Options:
   --repo-dir=PATH        Repo directory (default: repo root)
   --service-user=USER    Repo owner user (default: tasmotafleet)
   --service-name=NAME    systemd service name (default: tasmotafleet)
+  --no-stash             Do not stash local changes before pulling
   --non-interactive      Use defaults for missing values (no prompts)
 EOF
   exit 0
@@ -31,6 +32,7 @@ REPO_DIR=""
 SERVICE_USER=""
 SERVICE_NAME=""
 NON_INTERACTIVE=0
+AUTO_STASH=1
 
 for arg in "$@"; do
   case "$arg" in
@@ -42,6 +44,9 @@ for arg in "$@"; do
       ;;
     --service-name=*)
       SERVICE_NAME="${arg#*=}"
+      ;;
+    --no-stash)
+      AUTO_STASH=0
       ;;
     --non-interactive)
       NON_INTERACTIVE=1
@@ -89,10 +94,71 @@ if ! systemctl list-unit-files --type=service --no-legend | awk '{print $1}' | g
   exit 1
 fi
 
+SERVICE_STOPPED=0
+STASHED_REF=""
+
+cleanup() {
+  local status=$?
+  if [[ $status -ne 0 && $SERVICE_STOPPED -eq 1 ]]; then
+    echo "Update failed. Starting service again."
+    systemctl start "$SERVICE_NAME" || true
+  fi
+}
+
+trap cleanup EXIT
+
 echo "Stopping service: ${SERVICE_NAME}"
 systemctl stop "$SERVICE_NAME"
+SERVICE_STOPPED=1
+
+is_dirty() {
+  [[ -n "$(git -C "$REPO_DIR" status --porcelain)" ]]
+}
+
+stash_changes() {
+  local message="$1"
+  if id -u "$SERVICE_USER" >/dev/null 2>&1; then
+    runuser -u "$SERVICE_USER" -- git -C "$REPO_DIR" stash push -u -m "$message" >/dev/null
+    STASHED_REF="$(runuser -u "$SERVICE_USER" -- git -C "$REPO_DIR" stash list -1 --format=%H)"
+  else
+    git -C "$REPO_DIR" stash push -u -m "$message" >/dev/null
+    STASHED_REF="$(git -C "$REPO_DIR" stash list -1 --format=%H)"
+  fi
+}
+
+apply_stash() {
+  local ref="$1"
+  if [[ -z "$ref" ]]; then
+    return 0
+  fi
+  if id -u "$SERVICE_USER" >/dev/null 2>&1; then
+    runuser -u "$SERVICE_USER" -- git -C "$REPO_DIR" stash pop "$ref"
+  else
+    git -C "$REPO_DIR" stash pop "$ref"
+  fi
+}
 
 echo "Updating repo..."
+if is_dirty; then
+  if [[ "$AUTO_STASH" -eq 0 ]]; then
+    echo "ERROR: Local changes found. Commit or stash them, or run without --no-stash."
+    exit 1
+  fi
+
+  if [[ "$NON_INTERACTIVE" -eq 1 ]]; then
+    echo "Local changes found. Stashing changes..."
+    stash_changes "auto-update-$(date +%Y%m%d-%H%M%S)"
+  else
+    read -r -p "Local changes found. Stash, update, and re-apply? (y/n) [y]: " confirm
+    confirm="${confirm:-y}"
+    if [[ "${confirm,,}" != "y" ]]; then
+      echo "Aborted by user."
+      exit 1
+    fi
+    stash_changes "auto-update-$(date +%Y%m%d-%H%M%S)"
+  fi
+fi
+
 if id -u "$SERVICE_USER" >/dev/null 2>&1; then
   runuser -u "$SERVICE_USER" -- git -C "$REPO_DIR" pull
 else
@@ -100,6 +166,16 @@ else
   git -C "$REPO_DIR" pull
 fi
 
+if [[ -n "$STASHED_REF" ]]; then
+  echo "Re-applying local changes..."
+  if ! apply_stash "$STASHED_REF"; then
+    echo "WARNING: Stash apply failed. Resolve conflicts and run:"
+    echo "  git -C \"$REPO_DIR\" status"
+    exit 1
+  fi
+fi
+
 echo "Starting service: ${SERVICE_NAME}"
 systemctl start "$SERVICE_NAME"
+SERVICE_STOPPED=0
 systemctl status "$SERVICE_NAME" --no-pager
